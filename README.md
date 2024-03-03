@@ -5,7 +5,7 @@ Separability and Alignment](https://arxiv.org/abs/2303.13662)
 by Yiyou Sun, Yaojie Liu, Xiaoming Liu, Yixuan Li and Wen-Sheng Chu.
 
 ## Preliminaries
-It is tested under Ubuntu Linux 20.04 and Python 3.8 environment, and requries some packages to be installed with the following commands:
+It is tested under Ubuntu Linux 22.04 and Python 3.8 environment, and requires some packages to be installed with the following commands:
 
 ```bash
 sudo apt install ffmpeg
@@ -18,7 +18,7 @@ pip install -r requirements.txt
 
 Download the OULU-NPU, CASIA-FASD, Idiap Replay-Attack, and MSU-MFSD datasets.
 
-### 2. Prepocessing
+### 2. Preprocessing
 
 Run `./preprocess.py`. (You might need to change the rootpath to the datasets in the script.)
 

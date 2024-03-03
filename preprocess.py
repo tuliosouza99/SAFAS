@@ -1,26 +1,25 @@
-from facenet_pytorch import MTCNN, InceptionResnetV1
-import cv2
-from PIL import Image
-import numpy as np
-from matplotlib import pyplot as plt
-from matplotlib.patches import Rectangle
+import glob
 import math
-from utils.rotate_crop import crop_rotated_rectangle, inside_rect, vis_rotcrop
-from ylib.scipy_misc import imread, imsave
-import torchvision.transforms.functional as tf
-import PIL
-from ylib.scipy_misc import imsave
-import glob, os, pickle
-import torch
+import os
+import pickle
 import re
+
+import cv2
+import ffmpeg
+import numpy as np
+import PIL
+import torchvision.transforms.functional as tf
+from facenet_pytorch import MTCNN, InceptionResnetV1
+from PIL import Image
+
+from utils.rotate_crop import crop_rotated_rectangle, inside_rect
+from ylib.scipy_misc import imread, imsave
+
 os.environ['PATH'] += os.pathsep + '/usr/bin/ffprobe'
 
 mtcnn = MTCNN(select_largest=False, device='cuda', image_size=224, margin=0)
 resnet = InceptionResnetV1(pretrained='vggface2').eval().cuda()
-
-import ffmpeg
-
-output_folder = 'preposess'
+output_folder = 'preprocess'
 
 
 def check_rotation(path_video_file):
@@ -32,7 +31,10 @@ def check_rotation(path_video_file):
     # we are looking for
     rotateCode = None
 
-    if 'tags' in meta_dict['streams'][0] and 'rotate' in meta_dict['streams'][0]['tags']:
+    if (
+        'tags' in meta_dict['streams'][0]
+        and 'rotate' in meta_dict['streams'][0]['tags']
+    ):
         if int(meta_dict['streams'][0]['tags']['rotate']) == 90:
             rotateCode = cv2.ROTATE_90_CLOCKWISE
         elif int(meta_dict['streams'][0]['tags']['rotate']) == 180:
@@ -44,7 +46,7 @@ def check_rotation(path_video_file):
         return -1
 
 
-def proposess_video(video_path, savepath, sample_ratio=5, max=1000):
+def preprocess_video(video_path, savepath, sample_ratio=5, max=1000):
 
     v_cap = cv2.VideoCapture(video_path)
 
@@ -76,19 +78,27 @@ def proposess_video(video_path, savepath, sample_ratio=5, max=1000):
             points = batch_points[0].astype(int)
             box = np.maximum(box, 0)
             points = np.maximum(points, 0)
-            cropped = frame[int(box[1]):int(box[3]), int(box[0]):int(box[2])]
+            cropped = frame[int(box[1]) : int(box[3]), int(box[0]) : int(box[2])]
 
             imsave(os.path.join(savepath, f'org_{frame_id:04d}.jpg'), frame)
-            imsave(os.path.join(savepath, f'crop_{frame_id:04d}.jpg'), Image.fromarray(cropped))
+            imsave(
+                os.path.join(savepath, f'crop_{frame_id:04d}.jpg'),
+                Image.fromarray(cropped),
+            )
             info_dict = {
                 'box': box,
                 'detect_prob': prob,
                 'points': points,
                 'face_embed': img_embedding.data.cpu().numpy(),
-                'frame_id': frame_id
+                'frame_id': frame_id,
             }
-            np.save(os.path.join(savepath, f'infov1_{frame_id:04d}.npy'), info_dict, allow_pickle=True)
+            np.save(
+                os.path.join(savepath, f'infov1_{frame_id:04d}.npy'),
+                info_dict,
+                allow_pickle=True,
+            )
         frame_id += 1
+
 
 def proposess_imglist(imglist, savepath):
 
@@ -113,18 +123,24 @@ def proposess_imglist(imglist, savepath):
         points = batch_points[0].astype(int)
         box = np.maximum(box, 0)
         points = np.maximum(points, 0)
-        cropped = frame[int(box[1]):int(box[3]), int(box[0]):int(box[2])]
+        cropped = frame[int(box[1]) : int(box[3]), int(box[0]) : int(box[2])]
 
         imsave(os.path.join(savepath, f'org_{frame_id:04d}.jpg'), frame)
-        imsave(os.path.join(savepath, f'crop_{frame_id:04d}.jpg'), Image.fromarray(cropped))
+        imsave(
+            os.path.join(savepath, f'crop_{frame_id:04d}.jpg'), Image.fromarray(cropped)
+        )
         info_dict = {
             'box': box,
             'detect_prob': prob,
             'points': points,
             'face_embed': img_embedding.data.cpu().numpy(),
-            'frame_id': frame_id
+            'frame_id': frame_id,
         }
-        np.save(os.path.join(savepath, f'infov1_{frame_id:04d}.npy'), info_dict, allow_pickle=True)
+        np.save(
+            os.path.join(savepath, f'infov1_{frame_id:04d}.npy'),
+            info_dict,
+            allow_pickle=True,
+        )
 
 
 def run_replay(rootpath):
@@ -166,7 +182,7 @@ def run_replay(rootpath):
             os.makedirs(savepath, exist_ok=True)
             print(f"make {savepath}")
 
-        proposess_video(filepath, savepath)
+        preprocess_video(filepath, savepath)
         if i % 20 == 0:
             print(f"processed {i} / {len(file_list)}")
 
@@ -215,7 +231,7 @@ def run_msu(rootpath):
             os.makedirs(savepath, exist_ok=True)
             print(f"make {savepath}")
 
-        proposess_video(filepath, savepath)
+        preprocess_video(filepath, savepath)
         if i % 20 == 0:
             print(f"processed {i} / {len(file_list)}")
 
@@ -255,13 +271,14 @@ def run_oulu(rootpath):
             os.makedirs(savepath, exist_ok=True)
             print(f"make {savepath}")
 
-        proposess_video(filepath, savepath)
+        preprocess_video(filepath, savepath)
         if i % 20 == 0:
             print(f"processed {i} / {len(file_list)}")
 
         meta_info_list.append((name, live_or_spoof, split))
 
     return meta_info_list
+
 
 def run_casia(rootpath):
     outpath = os.path.join(rootpath, output_folder)
@@ -298,7 +315,7 @@ def run_casia(rootpath):
             os.makedirs(savepath, exist_ok=True)
             print(f"make {savepath}")
 
-        proposess_video(filepath, savepath)
+        preprocess_video(filepath, savepath)
 
         if i % 20 == 0:
             print(f"processed {i} / {len(file_list)}")
@@ -309,7 +326,7 @@ def run_casia(rootpath):
 
 
 def run_celeba(rootpath, saveroot):
-    outpath = os.path.join(saveroot, 'preposess')
+    outpath = os.path.join(saveroot, output_folder)
     os.makedirs(outpath, exist_ok=True)
 
     for split in ['train', 'test']:
@@ -319,12 +336,12 @@ def run_celeba(rootpath, saveroot):
             for live_or_spoof in ['live', 'spoof']:
                 path_split_id_label = os.path.join(path_split_id, live_or_spoof)
                 if os.path.exists(path_split_id_label):
-                    img_file_list = glob.glob(path_split_id_label + "/*.jpg", recursive=False) + \
-                                    glob.glob(path_split_id_label + "/*.png", recursive=False)
+                    img_file_list = glob.glob(
+                        path_split_id_label + "/*.jpg", recursive=False
+                    ) + glob.glob(path_split_id_label + "/*.png", recursive=False)
 
                     name = f"celeba_{split}_{live_or_spoof}_{id}"
                     savepath = os.path.join(outpath, name)
-
 
                     if os.path.exists(savepath) and len(os.listdir(savepath)) > 4:
                         print(f"skip {savepath}")
@@ -336,14 +353,19 @@ def run_celeba(rootpath, saveroot):
                     proposess_imglist(img_file_list, savepath)
 
 
+def dist(p1, p2):
+    return int(np.sqrt(((p1 - p2) ** 2).sum()))
+
+
 def generate_square_images(image, info, face_width=400, range_scale=3):
     points = np.array(info['points'])
-    dist = lambda p1, p2: int(np.sqrt(((p1 - p2) ** 2).sum()))
     width = dist(points[0], points[1])
     # height = max(dist(points[1], points[4]), dist(points[0], points[3]))
     center = tuple(points[2])
 
-    angle = math.degrees(math.atan((points[1, 1] - points[0, 1]) / (points[1, 0] - points[0, 0])))
+    angle = math.degrees(
+        math.atan((points[1, 1] - points[0, 1]) / (points[1, 0] - points[0, 0]))
+    )
     rect = (center, (int(width * range_scale), int(width * range_scale)), angle)
     img_rows = image.shape[0]
     img_cols = image.shape[1]
@@ -359,7 +381,9 @@ def generate_square_images(image, info, face_width=400, range_scale=3):
 
         if scale < min_scale:
             pad_size = 3000
-            image = np.array(tf.pad(PIL.Image.fromarray(image), pad_size, padding_mode='symmetric'))
+            image = np.array(
+                tf.pad(PIL.Image.fromarray(image), pad_size, padding_mode='symmetric')
+            )
             center = (center[0] + pad_size, center[1] + pad_size)
             rect = (center, (int(width * scale), int(width * scale)), angle)
             break
@@ -368,12 +392,14 @@ def generate_square_images(image, info, face_width=400, range_scale=3):
         rect = (center, (int(width * scale), int(width * scale)), angle)
         round += 1
 
-
     scaled_face_size = int(face_width * scale / initial_scale)
     image_square_cropped = crop_rotated_rectangle(image=image, rect=rect)
     # vis_rotcrop(image, image_square_cropped, rect, center)
-    image_resized = cv2.resize(image_square_cropped, (scaled_face_size, scaled_face_size))
+    image_resized = cv2.resize(
+        image_square_cropped, (scaled_face_size, scaled_face_size)
+    )
     return image_resized
+
 
 def generate_square_crop(rootpath, face_width=400):
     files = os.listdir(rootpath)
@@ -398,15 +424,19 @@ def generate_square_crop(rootpath, face_width=400):
             except pickle.UnpicklingError:
                 print(f"*** error with {video_clip_path}")
                 break
-            square_image_path = os.path.join(video_clip_path, f"square{face_width}_{image_id * 5:04d}.jpg")
+            square_image_path = os.path.join(
+                video_clip_path, f"square{face_width}_{image_id * 5:04d}.jpg"
+            )
             if not os.path.exists(square_image_path):
                 image = imread(image_path)
-                square_image = generate_square_images(image, info, face_width=face_width)
+                square_image = generate_square_images(
+                    image, info, face_width=face_width
+                )
                 imsave(square_image_path, square_image)
 
 
 if __name__ == '__main__':
-    oulu_info = run_oulu(rootpath="datasets/FAS/OULU-NPU/")
-    msu_info = run_msu(rootpath="datasets/FAS/MSU-MFSD/")
-    casia_info = run_casia(rootpath="datasets/FAS/CASIA_faceAntisp/")
-    replay_info = run_replay(rootpath="datasets/FAS/Replay/")
+    oulu_info = run_oulu(rootpath="/mnt/e/OULU-NPU/")
+    msu_info = run_msu(rootpath="/mnt/e/MSU-MFSD/")
+    casia_info = run_casia(rootpath="/mnt/e/CASIA_faceAntisp/")
+    replay_info = run_replay(rootpath="/mnt/e/Replay/")
